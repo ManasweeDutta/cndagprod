@@ -1,0 +1,42 @@
+[project]
+name = "eric-sdui-docgen-libcommon-py"
+#version = "0.0.1"
+description = "Add your description here"
+readme = "README.md"
+dynamic = ["version"]
+requires-python = ">=3.11"
+dependencies = [
+    "openpyxl>=3.1.5",
+    "pandas>=2.3.0",
+    "pypandoc==1.15",
+    "python-docx==1.1.2",
+    "docx==0.2.4",
+    "docx2txt==0.9",
+    "python-docx==1.1.2",
+    "eric-sdui-common-utility-py==1.0.0+dev1",
+    "eric_sdui_common_logger_py==0.0.1+dev7",
+    "markdown==3.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "python-multipart>=0.0.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+source = "env"
+variable = "PKG_VERSION"
+
+
+[tool.uv.sources]
+eric-sdui-common-logger-py = { path = "./libs/eric_sdui_common_logger_py-0.0.1+dev7-py3-none-any.whl" }
+eric_sdui_common_utility_py = { path = "./libs/eric_sdui_common_utility_py-1.0.0+dev1-py3-none-any.whl" }
