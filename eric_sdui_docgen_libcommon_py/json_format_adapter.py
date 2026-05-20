@@ -6,9 +6,6 @@ import os
 import logging
 
 
-W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-
-
 def iter_block_items(parent):
     """
     Yield paragraphs and tables in document order
@@ -57,268 +54,6 @@ def copy_styles(source_doc, target_doc):
                 logging.warning(
                     f"Failed to copy style {style.name}: {e}"
                 )
-
-
-def copy_numbering_part(source_doc, target_doc):
-    """
-    Copy numbering definitions from source doc
-    into target doc using NEW unique IDs
-    to avoid numbering collisions.
-    """
-
-    try:
-
-        src_numbering = (
-            source_doc.part.numbering_part._element
-        )
-
-        tgt_numbering = (
-            target_doc.part.numbering_part._element
-        )
-
-        #
-        # Existing IDs in target
-        #
-        existing_num_ids = set()
-        existing_abs_ids = set()
-
-        for child in tgt_numbering:
-
-            tag = child.tag.split("}")[-1]
-
-            if tag == "num":
-
-                num_id = child.get(
-                    f"{{{W_NS}}}numId"
-                )
-
-                if num_id:
-                    existing_num_ids.add(
-                        int(num_id)
-                    )
-
-            elif tag == "abstractNum":
-
-                abs_id = child.get(
-                    f"{{{W_NS}}}abstractNumId"
-                )
-
-                if abs_id:
-                    existing_abs_ids.add(
-                        int(abs_id)
-                    )
-
-        #
-        # Generate safe IDs
-        #
-        next_num_id = (
-            max(existing_num_ids, default=0) + 100
-        )
-
-        next_abs_id = (
-            max(existing_abs_ids, default=0) + 100
-        )
-
-        abs_mapping = {}
-        num_mapping = {}
-
-        #
-        # Copy abstractNum definitions
-        #
-        for child in src_numbering:
-
-            tag = child.tag.split("}")[-1]
-
-            if tag != "abstractNum":
-                continue
-
-            old_abs_id = int(
-                child.get(
-                    f"{{{W_NS}}}abstractNumId"
-                )
-            )
-
-            new_abs_id = next_abs_id
-            next_abs_id += 1
-
-            abs_mapping[
-                old_abs_id
-            ] = new_abs_id
-
-            new_child = deepcopy(child)
-
-            new_child.set(
-                f"{{{W_NS}}}abstractNumId",
-                str(new_abs_id)
-            )
-
-            tgt_numbering.append(
-                new_child
-            )
-
-        #
-        # Copy num definitions
-        #
-        for child in src_numbering:
-
-            tag = child.tag.split("}")[-1]
-
-            if tag != "num":
-                continue
-
-            old_num_id = int(
-                child.get(
-                    f"{{{W_NS}}}numId"
-                )
-            )
-
-            new_num_id = next_num_id
-            next_num_id += 1
-
-            num_mapping[
-                old_num_id
-            ] = new_num_id
-
-            new_child = deepcopy(child)
-
-            new_child.set(
-                f"{{{W_NS}}}numId",
-                str(new_num_id)
-            )
-
-            #
-            # Remap abstractNumId
-            #
-            abs_ref = new_child.find(
-                ".//w:abstractNumId",
-                {
-                    "w": W_NS
-                }
-            )
-
-            if abs_ref is not None:
-
-                old_abs = int(
-                    abs_ref.get(
-                        f"{{{W_NS}}}val"
-                    )
-                )
-
-                abs_ref.set(
-                    f"{{{W_NS}}}val",
-                    str(abs_mapping[old_abs])
-                )
-
-            tgt_numbering.append(
-                new_child
-            )
-
-        return num_mapping
-
-    except Exception as e:
-
-        logging.warning(
-            f"Failed to copy numbering part: {e}"
-        )
-
-        return {}
-
-
-def clean_heading_numbering(paragraph_element):
-    """
-    Remove numbering ONLY from heading paragraphs
-    so the master template controls heading numbering.
-    """
-
-    pStyle = paragraph_element.find(
-        ".//w:pStyle",
-        {
-            "w": W_NS
-        }
-    )
-
-    if pStyle is None:
-        return
-
-    style_val = (
-        pStyle.get(
-            f"{{{W_NS}}}val",
-            ""
-        ).lower()
-    )
-
-    #
-    # Detect heading styles
-    #
-    if "heading" not in style_val:
-        return
-
-    #
-    # Remove numbering from heading ONLY
-    #
-    pPr = paragraph_element.find(
-        ".//w:pPr",
-        {
-            "w": W_NS
-        }
-    )
-
-    if pPr is None:
-        return
-
-    numPr = pPr.find(
-        ".//w:numPr",
-        {
-            "w": W_NS
-        }
-    )
-
-    if numPr is not None:
-
-        pPr.remove(numPr)
-
-
-def remap_paragraph_numbering(
-    paragraph_element,
-    num_mapping
-):
-    """
-    Remap paragraph numbering IDs
-    to prevent numbering collisions.
-    """
-
-    pPr = paragraph_element.find(
-        ".//w:numPr",
-        {
-            "w": W_NS
-        }
-    )
-
-    if pPr is None:
-        return
-
-    numId = pPr.find(
-        ".//w:numId",
-        {
-            "w": W_NS
-        }
-    )
-
-    if numId is None:
-        return
-
-    old_id = int(
-        numId.get(
-            f"{{{W_NS}}}val"
-        )
-    )
-
-    if old_id in num_mapping:
-
-        numId.set(
-            f"{{{W_NS}}}val",
-            str(num_mapping[old_id])
-        )
 
 
 def replace_placeholder(
@@ -403,14 +138,6 @@ def replace_placeholder(
                 main_doc
             )
 
-        #
-        # Copy numbering definitions safely
-        #
-        num_mapping = copy_numbering_part(
-            sub_doc,
-            main_doc
-        )
-
         placeholder_found = False
 
         #
@@ -429,17 +156,17 @@ def replace_placeholder(
                 parent = para._element.getparent()
 
                 #
+                # IMPORTANT:
                 # Insert EXACTLY at placeholder location
+                # to preserve original indentation
                 #
                 index = parent.index(
                     para._element
                 )
 
                 #
-                # Collect all elements first
+                # Insert RAW OOXML blocks
                 #
-                elements_to_insert = []
-
                 for block in iter_block_items(sub_doc):
 
                     #
@@ -454,26 +181,12 @@ def replace_placeholder(
                             block._element
                         )
 
-                        #
-                        # Remove heading numbering
-                        # so template numbering applies
-                        #
-                        clean_heading_numbering(
+                        parent.insert(
+                            index,
                             new_elem
                         )
 
-                        #
-                        # Remap numbering IDs
-                        # for body lists/bullets
-                        #
-                        remap_paragraph_numbering(
-                            new_elem,
-                            num_mapping
-                        )
-
-                        elements_to_insert.append(
-                            new_elem
-                        )
+                        index += 1
 
                     #
                     # Table
@@ -487,21 +200,12 @@ def replace_placeholder(
                             block._element
                         )
 
-                        elements_to_insert.append(
+                        parent.insert(
+                            index,
                             new_tbl
                         )
 
-                #
-                # Insert sequentially
-                #
-                for offset, elem in enumerate(
-                    elements_to_insert
-                ):
-
-                    parent.insert(
-                        index + offset,
-                        elem
-                    )
+                        index += 1
 
                 #
                 # Remove placeholder LAST
